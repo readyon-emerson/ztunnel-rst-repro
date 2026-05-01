@@ -1,0 +1,111 @@
+# Four server replicas behind a Service, configured with standard
+# Kubernetes production deployment defaults:
+#
+#   replicas: 4
+#   strategy: RollingUpdate, maxSurge=1, maxUnavailable=0
+#   terminationGracePeriodSeconds: 30
+#   lifecycle.preStop: sleep 15 (lets load balancers deregister before the
+#                                 app starts shutting down)
+#   podAntiAffinity: PREFERRED (soft) -- spread when possible, don't block
+#   PodDisruptionBudget: minAvailable: 2
+#
+# Pinned to nodes labeled `role: backend` (see manifests/kind-cluster.yaml).
+# Four such nodes exist so consolidation events can rotate drain target
+# across them without running out of capacity. Client and waypoint live on
+# nodes with different labels, so traffic from the client always crosses
+# HBONE into a different node.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: server
+spec:
+  replicas: 4
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: server
+  template:
+    metadata:
+      labels:
+        app: server
+    spec:
+      nodeSelector:
+        role: backend     # see manifests/kind-cluster.yaml for the labeled nodes
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: server
+                topologyKey: kubernetes.io/hostname
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: server
+          image: ztunnel-rst-repro-server:local
+          imagePullPolicy: Never
+          lifecycle:
+            # Lame-duck pattern: at the start of preStop, create a marker
+            # file. The readinessProbe then immediately fails (it checks
+            # for absence of this file), kubelet flips Ready=false, the
+            # EndpointSlice marks serving=false, istiod pushes EDS, and
+            # waypoint/Envoy stops routing to this pod within 2-5s --
+            # *before* SIGTERM hits the process or http-terminator drains.
+            #
+            # We deliberately do NOT trigger http-terminator from preStop
+            # itself (e.g. via SIGUSR1, even with a delay). Tried that:
+            #   - calling terminate() at t=0 of preStop made rollouts
+            #     ~30x worse (listener closed before EDS propagation)
+            #   - calling terminate() at t=7 of preStop (after a fixed
+            #     EDS settling delay) was no better -- pessimistic sleep
+            #     can't be deterministic under busy clusters, so some
+            #     runs still hit the same race and show stdev 600+
+            # The SIGTERM-only drain combined with this lame-duck flip
+            # measures cleanly at ~530 errors per consolidation cycle
+            # with stdev ~110.
+            preStop:
+              exec:
+                command: ["/bin/sh", "-c", "touch /tmp/draining && sleep 15"]
+          ports:
+            - containerPort: 8080
+          # Two checks: port 8080 must be listening (covers the "added too
+          # early" startup race) AND /tmp/draining must not exist (covers
+          # the lame-duck shutdown signal from preStop above).
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - "[ ! -f /tmp/draining ] && nc -z localhost 8080"
+            periodSeconds: 1
+            failureThreshold: 1
+            successThreshold: 1
+            timeoutSeconds: 1
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: server
+spec:
+  selector:
+    app: server
+  ports:
+    - port: 80
+      targetPort: 8080
+---
+# PodDisruptionBudget with minAvailable: 1. Causes kubectl drain to wait
+# rather than evicting the last healthy replica during voluntary disruption.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: server
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: server

@@ -1,0 +1,10 @@
+# Test namespace, enrolled in Istio ambient mode at creation. The
+# `istio.io/dataplane-mode: ambient` label is what causes istio-cni-node to
+# install iptables redirects so that traffic from pods in this namespace is
+# intercepted by ztunnel.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ${NS}
+  labels:
+    istio.io/dataplane-mode: ambient

@@ -1,0 +1,37 @@
+# Traffic policy applied at the waypoint when WAYPOINT_ENABLED=1.
+#
+# DestinationRule only. We tried adding a VirtualService with retries on
+# `gateway-error,connect-failure,refused-stream,reset` and saw the error
+# pattern shift from clean L7 503s to L4 RSTs (UND_ERR_SOCKET / ECONNRESET)
+# without an overall reduction. Most likely cause: VirtualService retries
+# are not fully honored by the ambient waypoint (istio docs note that some
+# VirtualService features only work via Gateway API HTTPRoute in ambient
+# mode). The canonical retry path for waypoints is HTTPRoute on the
+# experimental Gateway API channel; revisit that later as a separate test.
+#
+# Outlier detection ejects an upstream after a consecutive-error threshold,
+# faster than waiting for the EndpointSlice update to propagate via EDS.
+# Load balancer matches the production DestinationRule shape.
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: server
+spec:
+  host: server
+  trafficPolicy:
+    loadBalancer:
+      simple: LEAST_REQUEST
+    # Outlier detection values are tuned for production at any reasonable
+    # fleet size. The exception is maxEjectionPercent: at small replica
+    # counts (this bench runs 4) Envoy floors `replicas * percent` to an
+    # integer, so 10% would round to 0 ejections and the policy would be
+    # silently inert. We use 50 here so the bench actually exercises
+    # ejection (2 of 4 max). A real production service with 10+ replicas
+    # should override to maxEjectionPercent: 10 (or align it with the
+    # Deployment's PDB headroom).
+    outlierDetection:
+      consecutive5xxErrors: 5     # tolerate transient blips, eject on sustained failure
+      interval: 30s               # observation window; counter resets if quiet
+      baseEjectionTime: 30s       # initial ejection; Envoy doubles on re-ejection
+      maxEjectionPercent: 50      # bench-only override; prod should be ~10
+      minHealthPercent: 50        # never eject if it would drop us below half-healthy

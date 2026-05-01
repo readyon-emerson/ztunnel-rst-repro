@@ -1,0 +1,24 @@
+# Source pod, pinned to a node labeled `role: client` (see kind-cluster.yaml).
+# Server replicas live on `role: backend` nodes, so every connection from
+# this pod crosses HBONE. Capturing tcpdump from inside this pod's netns
+# gives us the most authoritative view of what the application socket
+# actually observes.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: client
+  labels:
+    app: client
+spec:
+  nodeSelector:
+    role: client
+  containers:
+    - name: client
+      # Local Node.js client + tcpdump (see app/client/Dockerfile). Loaded
+      # into kind via `kind load docker-image` before this manifest is
+      # applied, hence imagePullPolicy: Never.
+      image: ztunnel-rst-repro-client:local
+      imagePullPolicy: Never
+      securityContext:
+        capabilities:
+          add: ["NET_ADMIN", "NET_RAW"]

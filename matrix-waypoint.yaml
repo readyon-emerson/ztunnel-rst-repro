@@ -1,0 +1,35 @@
+# Waypoint-only subset: 6 scenarios (3 event sequences × 2 client variants).
+# Run with: CONFIG=matrix-waypoint.yaml ./matrix.sh
+scenarios:
+  - label: waypoint-nofix-rollout
+    env:
+      WAYPOINT_ENABLED: "1"
+      EVENTS: "rollout,rollout,rollout,rollout"
+
+  - label: waypoint-fix-rollout
+    env:
+      WAYPOINT_ENABLED: "1"
+      CLIENT_FIX: "1"
+      EVENTS: "rollout,rollout,rollout,rollout"
+
+  - label: waypoint-nofix-consolidation
+    env:
+      WAYPOINT_ENABLED: "1"
+      EVENTS: "consolidation,consolidation,consolidation,consolidation"
+
+  - label: waypoint-fix-consolidation
+    env:
+      WAYPOINT_ENABLED: "1"
+      CLIENT_FIX: "1"
+      EVENTS: "consolidation,consolidation,consolidation,consolidation"
+
+  - label: waypoint-nofix-mixed
+    env:
+      WAYPOINT_ENABLED: "1"
+      EVENTS: "rollout,consolidation,rollout,consolidation"
+
+  - label: waypoint-fix-mixed
+    env:
+      WAYPOINT_ENABLED: "1"
+      CLIENT_FIX: "1"
+      EVENTS: "rollout,consolidation,rollout,consolidation"

@@ -1,0 +1,37 @@
+# Variance check for waypoint with the lame-duck pattern: 4 iterations each
+# of rollout-only and consolidation-only, no client fix.
+# Run with: CONFIG=matrix-stress.yaml ./matrix.sh
+scenarios:
+  - label: waypoint-rollout-1
+    env:
+      WAYPOINT_ENABLED: "1"
+      EVENTS: "rollout,rollout,rollout,rollout"
+  - label: waypoint-rollout-2
+    env:
+      WAYPOINT_ENABLED: "1"
+      EVENTS: "rollout,rollout,rollout,rollout"
+  - label: waypoint-rollout-3
+    env:
+      WAYPOINT_ENABLED: "1"
+      EVENTS: "rollout,rollout,rollout,rollout"
+  - label: waypoint-rollout-4
+    env:
+      WAYPOINT_ENABLED: "1"
+      EVENTS: "rollout,rollout,rollout,rollout"
+
+  - label: waypoint-cons-1
+    env:
+      WAYPOINT_ENABLED: "1"
+      EVENTS: "consolidation,consolidation,consolidation,consolidation"
+  - label: waypoint-cons-2
+    env:
+      WAYPOINT_ENABLED: "1"
+      EVENTS: "consolidation,consolidation,consolidation,consolidation"
+  - label: waypoint-cons-3
+    env:
+      WAYPOINT_ENABLED: "1"
+      EVENTS: "consolidation,consolidation,consolidation,consolidation"
+  - label: waypoint-cons-4
+    env:
+      WAYPOINT_ENABLED: "1"
+      EVENTS: "consolidation,consolidation,consolidation,consolidation"

@@ -1,0 +1,89 @@
+# 12-node kind cluster:
+#   * 1 control-plane
+#   * 8 backend workers (consolidation drains a different one per event;
+#     drained workers stay drained for the rest of the run. Four events
+#     leave four backends alive to host the deployment, so pods always
+#     have spread room and never concentrate on a single node. Models
+#     "consolidate 4 of 8 nodes" -- a common production scenario where
+#     Karpenter compacts a tenant nodepool. We do NOT bring drained
+#     workers back: in production Karpenter would launch a *new* EC2
+#     instance to replace it, not reboot the same one. Bringing the same
+#     kind worker back via `docker start` triggers a CNI/ztunnel sandbox
+#     respawn ~30-40s later that doesn't happen in production and
+#     contaminates measurement.)
+#   * 1 client worker
+#   * 2 waypoint workers (dedicated; never drained)
+#
+# Why dedicated waypoint nodes: with anti-affinity-only, the scheduler can
+# place a waypoint replica on a backend worker, and a drain that happens to
+# hit that worker cycles the waypoint *itself* -- producing an L4 RST flood
+# that's measuring the wrong thing. Pinning waypoints to a separate
+# nodepool isolates "backend churn handled by stable waypoint" from
+# "waypoint churn from drain coincidence." Mirrors the production pattern
+# of running waypoints on a platform/system nodepool that's not subject to
+# consolidation.
+#
+# Two waypoint nodes (rather than one) so the HPA's 2 replicas can spread
+# via the cluster-wide podAntiAffinity (preferred, by hostname) configured
+# on istiod via global.waypoint.affinity.
+#
+# kubeadmConfigPatches enables kubelet Graceful Node Shutdown on every
+# worker so that when the worker container receives SIGTERM (via
+# `docker stop`, simulating Karpenter's instance terminate after drain),
+# kubelet runs its own staged shutdown:
+#   1. shutdownGracePeriod                 = total window kubelet has
+#   2. shutdownGracePeriodCriticalPods     = window reserved for critical
+#                                            pods (DaemonSets like ztunnel)
+#                                            after non-critical pods exit
+# Without this, SIGTERM on the node translates to immediate SIGKILL of
+# every pod, which is NOT what Karpenter consolidation does in production
+# when GNS is configured.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+  - role: control-plane
+  - role: worker  # backend 1 (drained at event 1)
+    labels:
+      role: backend
+  - role: worker  # backend 2 (drained at event 2)
+    labels:
+      role: backend
+  - role: worker  # backend 3 (drained at event 3)
+    labels:
+      role: backend
+  - role: worker  # backend 4 (drained at event 4)
+    labels:
+      role: backend
+  - role: worker  # backend 5 (alive throughout)
+    labels:
+      role: backend
+  - role: worker  # backend 6 (alive throughout)
+    labels:
+      role: backend
+  - role: worker  # backend 7 (alive throughout)
+    labels:
+      role: backend
+  - role: worker  # backend 8 (alive throughout)
+    labels:
+      role: backend
+  - role: worker  # client (never drained)
+    labels:
+      role: client
+  - role: worker  # waypoint 1 (never drained)
+    labels:
+      role: waypoint
+  - role: worker  # waypoint 2 (never drained)
+    labels:
+      role: waypoint
+kubeadmConfigPatches:
+  - |
+    kind: ClusterConfiguration
+    apiServer:
+      extraArgs:
+        v: "2"
+  - |
+    kind: KubeletConfiguration
+    shutdownGracePeriod: 60s
+    shutdownGracePeriodCriticalPods: 30s
+    featureGates:
+      GracefulNodeShutdown: true

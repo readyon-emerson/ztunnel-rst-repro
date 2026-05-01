@@ -1,0 +1,27 @@
+# IstioOperator config used by reproduce.sh's `istioctl install`.
+#
+# global.waypoint.affinity (preferred podAntiAffinity by hostname) tells
+# istiod's gateway-controller to schedule waypoint Deployment replicas
+# across distinct nodes when capacity allows. Without this, both replicas
+# can land on the same node and drain that node evicts both at once
+# (PDB minAvailable=1 blocks the second eviction, but the test bench would
+# see a stalled drain instead of clean failover).
+#
+# Requires Istio >= 1.24 (istio/istio#52885).
+apiVersion: install.istio.io/v1alpha1
+kind: IstioOperator
+spec:
+  profile: ambient
+  values:
+    global:
+      waypoint:
+        affinity:
+          podAntiAffinity:
+            preferredDuringSchedulingIgnoredDuringExecution:
+              - weight: 100
+                podAffinityTerm:
+                  labelSelector:
+                    matchExpressions:
+                      - key: gateway.networking.k8s.io/gateway-name
+                        operator: Exists
+                  topologyKey: kubernetes.io/hostname

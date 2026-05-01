@@ -1,0 +1,8 @@
+{
+  "name": "ztunnel-rst-repro-client",
+  "private": true,
+  "dependencies": {
+    "undici": "^7.0.0",
+    "axios": "^1.13.5"
+  }
+}

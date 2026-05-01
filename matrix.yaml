@@ -1,0 +1,113 @@
+# Scenarios for the parallel run matrix.
+#
+# Each entry produces one isolated kind cluster (named ztunnel-rst-repro-<label>)
+# and runs ./run.sh once with the listed env vars. All clusters run concurrently
+# when invoked via ./matrix.sh.
+#
+# label    -- short identifier; doubles as the cluster name suffix and run log
+# env      -- environment variables passed into ./run.sh
+#             WAYPOINT_ENABLED=1  -> enrol the namespace in ambient + waypoint
+#             WITHOUT_ISTIO=1     -> skip istio install entirely (plain k8s)
+#             CLIENT_FIX=1        -> use the fixed Node client (no keep-alive race)
+#             EVENTS=...          -> comma-separated, deterministic event sequence
+#                                    (omit -> 4 random events, 50/50 rollout/cons)
+#             (no env)            -> ambient with ztunnel only, no waypoint
+#
+# 3 modes (noistio, nowaypoint, waypoint) x 2 client variants (nofix, fix) x
+# 3 event sequences (rollout-only, consolidation-only, mixed) = 18 scenarios.
+scenarios:
+  # ------------------------------------------------------------ rollout-only
+  - label: noistio-nofix-rollout
+    env:
+      WITHOUT_ISTIO: "1"
+      EVENTS: "rollout,rollout,rollout,rollout"
+
+  - label: nowaypoint-nofix-rollout
+    env:
+      EVENTS: "rollout,rollout,rollout,rollout"
+
+  - label: waypoint-nofix-rollout
+    env:
+      WAYPOINT_ENABLED: "1"
+      EVENTS: "rollout,rollout,rollout,rollout"
+
+  - label: noistio-fix-rollout
+    env:
+      WITHOUT_ISTIO: "1"
+      CLIENT_FIX: "1"
+      EVENTS: "rollout,rollout,rollout,rollout"
+
+  - label: nowaypoint-fix-rollout
+    env:
+      CLIENT_FIX: "1"
+      EVENTS: "rollout,rollout,rollout,rollout"
+
+  - label: waypoint-fix-rollout
+    env:
+      WAYPOINT_ENABLED: "1"
+      CLIENT_FIX: "1"
+      EVENTS: "rollout,rollout,rollout,rollout"
+
+  # ------------------------------------------------------ consolidation-only
+  - label: noistio-nofix-consolidation
+    env:
+      WITHOUT_ISTIO: "1"
+      EVENTS: "consolidation,consolidation,consolidation,consolidation"
+
+  - label: nowaypoint-nofix-consolidation
+    env:
+      EVENTS: "consolidation,consolidation,consolidation,consolidation"
+
+  - label: waypoint-nofix-consolidation
+    env:
+      WAYPOINT_ENABLED: "1"
+      EVENTS: "consolidation,consolidation,consolidation,consolidation"
+
+  - label: noistio-fix-consolidation
+    env:
+      WITHOUT_ISTIO: "1"
+      CLIENT_FIX: "1"
+      EVENTS: "consolidation,consolidation,consolidation,consolidation"
+
+  - label: nowaypoint-fix-consolidation
+    env:
+      CLIENT_FIX: "1"
+      EVENTS: "consolidation,consolidation,consolidation,consolidation"
+
+  - label: waypoint-fix-consolidation
+    env:
+      WAYPOINT_ENABLED: "1"
+      CLIENT_FIX: "1"
+      EVENTS: "consolidation,consolidation,consolidation,consolidation"
+
+  # ----------------------------------------------------- mixed (alternating)
+  - label: noistio-nofix-mixed
+    env:
+      WITHOUT_ISTIO: "1"
+      EVENTS: "rollout,consolidation,rollout,consolidation"
+
+  - label: nowaypoint-nofix-mixed
+    env:
+      EVENTS: "rollout,consolidation,rollout,consolidation"
+
+  - label: waypoint-nofix-mixed
+    env:
+      WAYPOINT_ENABLED: "1"
+      EVENTS: "rollout,consolidation,rollout,consolidation"
+
+  - label: noistio-fix-mixed
+    env:
+      WITHOUT_ISTIO: "1"
+      CLIENT_FIX: "1"
+      EVENTS: "rollout,consolidation,rollout,consolidation"
+
+  - label: nowaypoint-fix-mixed
+    env:
+      CLIENT_FIX: "1"
+      EVENTS: "rollout,consolidation,rollout,consolidation"
+
+  - label: waypoint-fix-mixed
+    env:
+      WAYPOINT_ENABLED: "1"
+      CLIENT_FIX: "1"
+      EVENTS: "rollout,consolidation,rollout,consolidation"

@@ -1,0 +1,7 @@
+{
+  "name": "ztunnel-rst-repro-server",
+  "private": true,
+  "dependencies": {
+    "http-terminator": "^3.2.0"
+  }
+}

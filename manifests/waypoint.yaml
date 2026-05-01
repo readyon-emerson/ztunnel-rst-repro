@@ -1,0 +1,59 @@
+# Istio waypoint for the server Service. With this in place, client traffic
+# from the calling pod terminates at the waypoint (Envoy) instead of the
+# backend pod directly. The waypoint absorbs backend pod churn: when one
+# replica is drained, the waypoint sees the endpoint update, lets in-flight
+# requests finish, and routes new requests to the surviving replica.
+#
+# Production-grade waypoint configuration (see README's Required platform
+# config section for why each piece matters):
+#   * Gateway: minimal, gatewayClassName: istio-waypoint, HBONE listener.
+#   * HPA: minReplicas=2, maxReplicas=4 -- never run a single waypoint instance.
+#   * PDB: minAvailable=1 -- node drain can never evict both replicas at once.
+# Pod anti-affinity (preferred, by hostname) is set cluster-wide on istiod via
+# global.waypoint.affinity (manifests/istio-operator.yaml), so the two replicas
+# land on different nodes when there's capacity.
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: server-waypoint
+spec:
+  gatewayClassName: istio-waypoint
+  listeners:
+    - name: mesh
+      port: 15008
+      protocol: HBONE
+---
+# HorizontalPodAutoscaler for the waypoint Envoy Deployment. The Deployment
+# is auto-managed by istio's gateway-controller; we don't render it directly,
+# so we target it by name (Gateway.name == Deployment.name).
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: server-waypoint
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: server-waypoint
+  minReplicas: 2
+  maxReplicas: 4
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+---
+# PodDisruptionBudget for the waypoint, selecting on the gateway-name label
+# istio applies to its auto-generated pods. minAvailable: 1 prevents a node
+# drain from evicting the only available waypoint replica.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: server-waypoint
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      gateway.networking.k8s.io/gateway-name: server-waypoint

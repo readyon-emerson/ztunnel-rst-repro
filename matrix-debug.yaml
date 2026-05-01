@@ -1,0 +1,7 @@
+# Single waypoint+consolidation scenario for instrumented debugging.
+# Run with: CONFIG=matrix-debug.yaml MAX_PARALLEL=1 ./matrix.sh
+scenarios:
+  - label: waypoint-cons-debug
+    env:
+      WAYPOINT_ENABLED: "1"
+      EVENTS: "consolidation,consolidation,consolidation,consolidation"
